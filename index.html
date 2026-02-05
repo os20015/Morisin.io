@@ -303,13 +303,28 @@
     const LOADING_MESSAGES = [
         "エネルギーの妖精たちが会議を行っています...",
         "膨大なデータの中で、担当AIが迷子になっています。今すぐ救出（解析）します！",
-        "サーバーが知恵熱を出さない程度に全力走中です。",
+        "サーバーが知恵熱を出さない程度に全力疾走中です。",
         "人工衛星から地表の熱源を凝視しています。まばたき厳禁...",
         "地球の鼓動をサンプリング中。少々お待ちを。",
         "1と0の海から、あなたに最適なエネルギーの真珠をすくい上げています。",
         "コーヒーを一口飲む時間はあります。でも二口目は間に合わないかもしれません。",
         "未来のエネルギーを計算中... 待っている間に、あなたの脳内エネルギーも充電しておいてください。",
-        "この間に、地球の裏側では太陽が沈み、風が吹き始めています。"
+        "この間に、地球の裏側では太陽が沈み、風が吹き始めています。",
+        "AIがそろばんを弾きすぎて指を火傷しかけています...",
+        "0と1の波に揉まれて、担当者が少し船酔い気味です...",
+        "サーバーが知恵熱を出したので、冷えピタを貼りながら計算しています...",
+        "解析エンジンが『あと5秒だけ寝かせて』と言っていますが、叩き起こしました。",
+        "人工衛星を2、3台借りて、現地の雲の隙間を覗き込んでいます...",
+        "地球の裏側まで地熱を探しに行っています。すぐ戻ります。",
+        "徳川埋蔵金ではなく、再生可能エネルギーの金脈を探り当てようとしています...",
+        "半径500km以内の猫の毛の逆立ち具合から、静電気ポテンシャルを測定中...（嘘です）",
+        "大丈夫です、フリーズしていません。あなたが選んだ土地が魅力的すぎて見惚れているだけです。",
+        "コーヒーの準備はいいですか？豆を挽く時間はありますが、お湯が沸く前には終わります。",
+        "今この瞬間、あなたのクリックが日本のエネルギーの未来を変える（かもしれない）一歩になりました。",
+        "解析中... 待っている間に、背筋を伸ばして深呼吸してみましょう。それが人間にとっての再エネです。",
+        "巨大な書庫から、ホコリを被った最新統計を引っ張り出しています...",
+        "統計データたちが『俺をグラフにしてくれ！』と列を作って並んでいます...",
+        "0.0001%の誤差も許さない潔癖症なアルゴリズムが、最後のチェックをしています..."
     ];
 
     // --- 状態管理 ---
@@ -319,11 +334,12 @@
     let compareList = [];
     let radarChart = null;
     let lineChart = null;
+    let markers = [];
 
     // --- 地図初期化 ---
     const map = L.map('map', {
         zoomControl: true,
-        maxBounds: [[20, 120], [50, 155]], // 日本付近に制限
+        maxBounds: [[20, 120], [50, 155]],
         minZoom: 5
     }).setView([36.5, 138], 5);
 
@@ -381,36 +397,49 @@
             const pref = addr.province || addr.state || "";
             const fullName = customName || (pref + " " + city);
 
-            // ポテンシャル計算
-            let p = { solar: 30, wind: 15, geo: 5, hydro: 15, bio: 15 };
-            if (pref.includes("大分") || pref.includes("熊本")) p.geo = 85;
-            else if (pref.includes("北海道") || pref.includes("青森")) p.wind = 80;
-            else if (city.includes("区")) p.solar = 70;
-            else if (pref.includes("長野") || pref.includes("岐阜")) p.hydro = 60;
+            // --- 強化されたポテンシャル計算ロジック ---
+            let p = { solar: 25, wind: 20, geo: 10, hydro: 20, bio: 25 };
 
-            // 季節・時間補正
+            if (pref.includes("大分") || pref.includes("熊本") || pref.includes("鹿児島") || pref.includes("福島") || pref.includes("秋田")) {
+                p.geo += 60;
+            }
+            if (pref.includes("北海道") || pref.includes("青森") || pref.includes("秋田") || pref.includes("山形") || city.includes("海") || city.includes("港") || city.includes("岬")) {
+                p.wind += 50;
+            }
+            if (pref.includes("長野") || pref.includes("岐阜") || pref.includes("富山") || pref.includes("石川") || pref.includes("福井") || city.includes("山") || city.includes("川")) {
+                p.hydro += 45;
+            }
+            if (pref.includes("高知") || pref.includes("宮崎") || pref.includes("岩手") || pref.includes("奈良")) {
+                p.bio += 40;
+            }
+            if (pref.includes("山梨") || pref.includes("静岡") || pref.includes("群馬") || pref.includes("岡山") || city.includes("区") || city.includes("市")) {
+                p.solar += 35;
+            }
+
             const sf = SEASON_FACTORS[currentSeason];
             const hourFactor = (currentTime >= 6 && currentTime <= 18) ? Math.sin((currentTime - 6) / 12 * Math.PI) : 0;
             
             let currentOutput = {
                 solar: p.solar * sf.solar * hourFactor,
-                wind: p.wind * sf.wind * (0.8 + Math.random() * 0.4),
+                wind: p.wind * sf.wind * (0.7 + Math.random() * 0.6),
                 geo: p.geo * sf.geo,
                 hydro: p.hydro * sf.hydro,
                 bio: p.bio * sf.bio
             };
 
-            // 最適種別判定
             let bestType = "SOLAR_AGRI";
-            if (p.geo > 70) bestType = "GEO_FLASH";
-            else if (p.wind > 60) bestType = (city.includes("海") || city.includes("港")) ? "WIND_OFFSHORE" : "WIND_ONSHORE";
-            else if (p.solar > 60) bestType = city.includes("区") ? "SOLAR_ROOF" : "SOLAR_AGRI";
-            else if (p.hydro > 50) bestType = "HYDRO_SMALL";
-            else if (p.bio > 30) bestType = "BIO_WOOD";
+            if (p.geo > 65) bestType = "GEO_FLASH";
+            else if (p.hydro > 60) bestType = "HYDRO_SMALL";
+            else if (p.wind > 65) bestType = (city.includes("海") || city.includes("港")) ? "WIND_OFFSHORE" : "WIND_ONSHORE";
+            else if (p.bio > 55) bestType = "BIO_WOOD";
+            else if (p.solar > 50) bestType = city.includes("区") ? "SOLAR_ROOF" : "SOLAR_AGRI";
+            else if (pref.includes("北海道") && currentSeason === 'winter') bestType = "SNOW";
+            else bestType = "BIO_GAS";
 
             const res = MASTER[bestType];
             currentData = { lat, lon, name: fullName, p, res, bestType };
 
+            addMarkerToMap(lat, lon, res, fullName);
             updateUI(fullName, res, currentOutput, p);
             hideLoading();
         })
@@ -418,6 +447,31 @@
             hideLoading();
             alert("解析に失敗しました。");
         });
+    }
+
+    function addMarkerToMap(lat, lon, res, name) {
+        const existing = markers.find(m => m.getLatLng().lat === lat && m.getLatLng().lng === lon);
+        if (existing) {
+            existing.setStyle({ color: res.c, fillColor: res.c });
+            existing.setPopupContent(`<strong>${name}</strong><br>最適: ${res.n}`);
+            return;
+        }
+
+        const marker = L.circleMarker([lat, lon], {
+            radius: 8,
+            fillColor: res.c,
+            color: "#fff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map);
+
+        marker.bindPopup(`<strong>${name}</strong><br>最適: ${res.n}`);
+        marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            analyze(lat, lon, name);
+        });
+        markers.push(marker);
     }
 
     function updateUI(name, res, output, p) {
@@ -428,10 +482,9 @@
         document.getElementById('res-badge').style.background = res.c;
         document.getElementById('res-title').innerText = res.n;
         document.getElementById('res-location').innerText = `📍 ${name} (${currentData.lat.toFixed(4)}, ${currentData.lon.toFixed(4)})`;
-        document.getElementById('res-description').innerHTML = `<strong>解析解説:</strong><br>${res.t}<br><br>現在の${currentSeason === 'spring' ? '春' : currentSeason === 'summer' ? '夏' : currentSeason === 'autumn' ? '秋' : '冬'}・${currentTime}時のシミュレーションでは、この地点のポテンシャルを最大限に引き出すことが可能です。`;
+        document.getElementById('res-description').innerHTML = `<strong>解析解説:</strong><br>${res.t}<br><br>この地点は${res.n}の適性が高く、地域のエネルギー自給率向上に寄与します。`;
 
         updateCharts(p);
-
         document.getElementById('add-compare-btn').onclick = () => addToCompare(currentData);
     }
 
@@ -439,7 +492,6 @@
         const labels = ['太陽光', '風力', '地熱', '水力', 'バイオマス'];
         const data = [p.solar, p.wind, p.geo, p.hydro, p.bio];
 
-        // レーダーチャート
         if (radarChart) radarChart.destroy();
         radarChart = new Chart(document.getElementById('radarChart'), {
             type: 'radar',
@@ -459,14 +511,13 @@
             }
         });
 
-        // ラインチャート (24時間予測)
         const hours = Array.from({length: 24}, (_, i) => `${i}時`);
         const sf = SEASON_FACTORS[currentSeason];
         const solarLine = hours.map((_, h) => {
             const hf = (h >= 6 && h <= 18) ? Math.sin((h - 6) / 12 * Math.PI) : 0;
             return p.solar * sf.solar * hf;
         });
-        const windLine = hours.map(() => p.wind * sf.wind * 0.9);
+        const windLine = hours.map(() => p.wind * sf.wind * 0.8);
         const baseLine = hours.map(() => (p.geo + p.hydro + p.bio) / 3);
 
         if (lineChart) lineChart.destroy();
@@ -563,7 +614,6 @@
 
         document.getElementById('compare-result-table').innerHTML = html;
         
-        // 総合評価の算出
         const bestItem = [...compareList].sort((a, b) => 
             (b.res.stable + b.res.cost + b.res.env + b.res.future) - 
             (a.res.stable + a.res.cost + a.res.env + a.res.future)
@@ -603,7 +653,6 @@
         setTimeout(() => toast.remove(), 3000);
     }
 
-    // --- イベント ---
     map.on('click', e => analyze(e.latlng.lat, e.latlng.lng));
 
     document.getElementById('search-btn').onclick = () => {
@@ -619,7 +668,6 @@
         });
     };
 
-    // 初期化
     window.onload = () => {
         showToast("地図をクリックして解析を開始してください");
     };
